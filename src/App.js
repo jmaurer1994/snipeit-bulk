@@ -113,7 +113,7 @@ export const App = () => {
 
 
 
-                                <ActionSelect setDevices={setDevices} setIsLoading={setIsLoading} setReload={setReload} selectedAction={selectedAction} setSelectedAction={setSelectedAction} />
+                                <ActionSelect setDevices={setDevices} setIsLoading={setIsLoading} API_KEY={API_KEY} BASE_URL={BASE_URL} setReload={setReload} selectedAction={selectedAction} setSelectedAction={setSelectedAction} />
                             </Stack>
 
 
