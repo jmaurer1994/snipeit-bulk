@@ -10,7 +10,10 @@
 
 # production
 /build
-/dist
+/dist/win-unpacked
+/dist/builder*
+/dist/latest*
+!/dist/snipiet-bulk*
 # misc
 .DS_Store
 .env.local
