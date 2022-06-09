@@ -1,0 +1,57 @@
+{
+  "name": "snipeit-bulk",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@chakra-ui/icons": "^2.0.2",
+    "@chakra-ui/react": "^2.2.1",
+    "@emotion/react": "^11.9.0",
+    "@emotion/styled": "^11.8.1",
+    "@testing-library/jest-dom": "^5.16.4",
+    "@testing-library/react": "^13.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "concurrently": "^7.2.1",
+    "cross-env": "^7.0.3",
+    "electron-is-dev": "^2.0.0",
+    "electron-json-config": "^2.0.0-beta",
+    "framer-motion": "^6.3.10",
+    "react": "^18.1.0",
+    "react-dom": "^18.1.0",
+    "react-scripts": "5.0.1",
+    "react-select": "^5.3.2",
+    "wait-on": "^6.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "main": "public/electron.js",
+  "homepage": "./",
+  "scripts": {
+    "electron-build": "electron-builder",
+    "release": "npm run build && electron-builder --linux --win --mac --x64 --ia32 --publish never",
+    "build": "react-scripts build && npm run electron-build",
+    "start": "concurrently \"cross-env BROWSER=none react-scripts start\" \"wait-on http://localhost:3000 && electron .\"",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^19.0.4",
+    "electron-builder": "^23.0.3"
+  }
+}
