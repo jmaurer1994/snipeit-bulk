@@ -1,31 +1,19 @@
 import { Box, Button, Center, Container, Heading, Input, Modal, ModalBody, ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalOverlay, Select, Spinner, Stack, Table, Tbody, Td, Text, Textarea, Th, Thead, Tr, useDisclosure } from '@chakra-ui/react';
 import { createContext, useContext, useEffect, useState } from 'react';
+import { DeviceTable } from './components/DeviceTable';
 
 const { ipcRenderer } = window.require('electron');
 
+export const DeviceContext = createContext();
 
-//TODO: unfuck the organization of this file and split out components into separate files
-
-const DeviceContext = createContext();
-
-export const App = () => {
-    const [serials, setSerials] = useState([])
-    const [devices, setDevices] = useState([])
-    const [devices_new, setDevices_new] = useState([])
-    const [reload, setReload] = useState()
-    const [promisesResolved, setPromisesResolved] = useState(0)
-    const [numPromises, setNumPromises] = useState(0)
-    const [selectedAction, setSelectedAction] = useState();
-    const [isLoading, setIsLoading] = useState(false);
-    const [API_KEY, setAPI_KEY] = useState('')
-    const [BASE_URL, setBASE_URL] = useState('')
+const AppLoader = ({ children, devices, API_KEY, setAPI_KEY, BASE_URL, setBASE_URL }) => {
     const { isOpen, onOpen, onClose } = useDisclosure()
 
     useEffect(() => {
         ipcRenderer.send('GET_DATA', { message: 'initial' });
 
-        ipcRenderer.on('GET_DATA', (event, {api_key, base_url}) => {
-            if(api_key === undefined || base_url === undefined){
+        ipcRenderer.on('GET_DATA', (event, { api_key, base_url }) => {
+            if (api_key === undefined || base_url === undefined) {
                 onOpen();
             } else {
                 setAPI_KEY(api_key)
@@ -34,61 +22,13 @@ export const App = () => {
 
         })
 
-    },[]);
+    }, []);
 
     const handleOnClickSubmit = () => {
         console.log(API_KEY, BASE_URL)
         ipcRenderer.send('GET_DATA', { message: 'update', api_key: API_KEY, base_url: BASE_URL });
         onClose();
     }
-
-    useEffect(() => {
-        const options = {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-                Authorization: 'Bearer ' + API_KEY
-            }
-        };
-        setIsLoading(true)
-        setDevices([])
-        const promiseArr = [];
-
-        serials.forEach((serial) => {
-            if (serial.length > 0) {
-                promiseArr.push(fetch(BASE_URL + 'hardware/byserial/' + serial, options))
-
-            } else {
-                console.log("Skipped bad input:", serial)
-            }
-        })
-
-        promiseArr.forEach((promise) => {
-            promise.then((response) => response.json())
-                .then((data) => {
-                    if (data.rows?.length) {
-                        setDevices_new((prev) => [...prev, data.rows[0]])
-                    }
-                    setPromisesResolved((prev) => prev + 1)
-                })
-                .catch(err => console.error(err));
-        })
-
-
-        setNumPromises(promiseArr.length)
-    }, [serials, reload]);
-
-
-    useEffect(() => {
-        console.log(promisesResolved)
-        if (promisesResolved === numPromises) {
-            console.log("Done promising")
-            setDevices(devices_new)
-            setPromisesResolved(0)
-            setDevices_new([])
-            setIsLoading(false)
-        }
-    }, [promisesResolved])
 
     const onChangeAPIKEYInput = (e) => {
         setAPI_KEY(e.target.value)
@@ -101,34 +41,10 @@ export const App = () => {
     return (
         <DeviceContext.Provider value={devices}>
             <Box w={'100vw'} h={'100vh'} bgColor={'brand.300'} >
-                <Container maxW='container.xl' maxH={'100vh'}>
-                    <Heading color={'brand.100'}>Snipeit Bulk Action</Heading>
-                    <Center>
 
-                        <Stack marginY={4} direction='rows' p={2} bgColor={'brand.100'} h={'90vh'} borderRadius={'8px'}>
-                            <Stack minW='240px' p={2}>
-                                <SerialModal setSerials={setSerials} />
-
-                                <ActionGroup setReload={setReload} selectedAction={selectedAction} setSelectedAction={setSelectedAction} />
-
-
-
-                                <ActionSelect setDevices={setDevices} setIsLoading={setIsLoading} API_KEY={API_KEY} BASE_URL={BASE_URL} setReload={setReload} selectedAction={selectedAction} setSelectedAction={setSelectedAction} />
-                            </Stack>
-
-
-                            <Box overflowY={'auto'} minW={'600px'}>
-
-                                <DisplayTable />
-                                <Center hidden={!isLoading}>
-                                    <Spinner size='lg' />
-                                </Center>
-                            </Box>
-
-                        </Stack>
-                    </Center>
-                </Container>
+                {children}
             </Box>
+
 
             <Modal isOpen={isOpen} onClose={onClose}>
                 <ModalOverlay />
@@ -138,9 +54,9 @@ export const App = () => {
                     <ModalBody>
 
                         <label color='black' >API KEY:</label>
-                        <Input onChange={onChangeAPIKEYInput} value={API_KEY}/>
+                        <Input onChange={onChangeAPIKEYInput} value={API_KEY} />
                         <label color='black' >API URL:</label>
-                        <Input onChange={onChangeBASEURLInput} value={BASE_URL}/>
+                        <Input onChange={onChangeBASEURLInput} value={BASE_URL} />
                     </ModalBody>
 
                     <ModalFooter>
@@ -152,9 +68,96 @@ export const App = () => {
     );
 }
 
+export const App = () => {
+    const [API_KEY, setAPI_KEY] = useState('')
+    const [BASE_URL, setBASE_URL] = useState('')
+
+    const [serials, setSerials] = useState([])
+    const [devices, setDevices] = useState([])
+    const [devices_new, setDevices_new] = useState([])
+    const [reload, setReload] = useState()
+    const [promisesResolved, setPromisesResolved] = useState(0)
+    const [numPromises, setNumPromises] = useState(0)
+    const [selectedAction, setSelectedAction] = useState();
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        async function refreshSerials() {
+            const options = {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json',
+                    Authorization: 'Bearer ' + API_KEY
+                }
+            };
+            setIsLoading(true)
+            setDevices([])
+            const promiseArr = [];
+
+            serials.forEach((serial) => {
+                if (serial.length > 0) {
+                    promiseArr.push(fetch(BASE_URL + 'hardware/byserial/' + serial, options))
+
+                } else {
+                    console.log("Skipped bad input:", serial)
+                }
+            })
+
+            const response_data = await Promise.all(promiseArr);
+            response_data.forEach((response) => {
+                const data = response.json();
+
+                if (data.rows?.length) {
+                    setDevices_new((prev) => [...prev, data.rows[0]])
+                }
+            })
+
+
+            setDevices(devices_new)
+            setPromisesResolved(0)
+            setDevices_new([])
+            setIsLoading(false)
+        }
+
+    }, [serials, reload]);
+
+    return (
+        <AppLoader devices={devices} API_KEY={API_KEY} setAPI_KEY={setAPI_KEY} BASE_URL={BASE_URL} setBASE_URL={setBASE_URL}>
+            <Container maxW='container.xl' maxH={'100vh'}>
+                <Heading color={'brand.100'}>Snipeit Bulk Action</Heading>
+                <Center>
+
+                    <Stack marginY={4} direction='rows' p={2} bgColor={'brand.100'} h={'90vh'} borderRadius={'8px'}>
+                        <Stack minW='240px' p={2}>
+                            <SerialModal setSerials={setSerials} />
+
+                            <ActionGroup setReload={setReload} selectedAction={selectedAction} setSelectedAction={setSelectedAction} />
+
+
+
+                            <ActionSelect setDevices={setDevices} setIsLoading={setIsLoading} API_KEY={API_KEY} BASE_URL={BASE_URL} setReload={setReload} selectedAction={selectedAction} setSelectedAction={setSelectedAction} />
+                        </Stack>
+
+
+                        <Box overflowY={'auto'} minW={'600px'}>
+
+                            <DeviceTable />
+                            <Center hidden={!isLoading}>
+                                <Spinner size='lg' />
+                            </Center>
+                        </Box>
+
+                    </Stack>
+                </Center>
+            </Container>
+
+        </AppLoader>
+    );
+}
+
 const ActionSelect = ({ setDevices, setIsLoading, setReload, selectedAction, setSelectedAction, API_KEY, BASE_URL }) => {
     if (selectedAction === 'update_status') {
-        return <UpdateStatus setDevices={setDevices} setIsLoading={setIsLoading} setReload={setReload} setSelectedAction={setSelectedAction} API_KEY = {API_KEY} BASE_URL={BASE_URL}/>
+        return <UpdateStatus setDevices={setDevices} setIsLoading={setIsLoading} setReload={setReload} setSelectedAction={setSelectedAction} API_KEY={API_KEY} BASE_URL={BASE_URL} />
     }
 }
 
@@ -324,31 +327,3 @@ const SerialModal = ({ setSerials }) => {
     )
 }
 
-const DeviceRow = ({ device }) => {
-    return (
-        <Tr>
-            <Td>{device.serial}</Td>
-            <Td>{device.assigned_to?.name ? 'Yes' : 'No'}</Td>
-            <Td>{device.status_label.name}</Td>
-        </Tr>
-    )
-}
-
-const DisplayTable = () => {
-    const devices = useContext(DeviceContext)
-
-    return (
-        <Table variant='striped'>
-            <Thead>
-                <Tr>
-                    <Th>Serial Number</Th>
-                    <Th>Checked out?</Th>
-                    <Th>Status</Th>
-                </Tr>
-            </Thead>
-            <Tbody>
-                {devices.map((device, key) => <DeviceRow device={device} key={key} />)}
-            </Tbody>
-        </Table>
-    )
-}
