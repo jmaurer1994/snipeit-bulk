@@ -74,70 +74,75 @@ export const App = () => {
 
     const [serials, setSerials] = useState([])
     const [devices, setDevices] = useState([])
-    const [devices_new, setDevices_new] = useState([])
-    const [reload, setReload] = useState()
-    const [promisesResolved, setPromisesResolved] = useState(0)
-    const [numPromises, setNumPromises] = useState(0)
+
     const [selectedAction, setSelectedAction] = useState();
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        async function refreshSerials() {
-            const options = {
-                method: 'GET',
-                headers: {
-                    Accept: 'application/json',
-                    Authorization: 'Bearer ' + API_KEY
-                }
-            };
-            setIsLoading(true)
-            setDevices([])
-            const promiseArr = [];
+        const options = {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                Authorization: 'Bearer ' + API_KEY
+            }
+        };
+        setIsLoading(true)
+        const devicesArr = [];
+        const promiseArr = [];
 
-            serials.forEach((serial) => {
-                if (serial.length > 0) {
-                    promiseArr.push(fetch(BASE_URL + 'hardware/byserial/' + serial, options))
+        serials.forEach((serial) => {
+            if (serial.length > 0) {
+                promiseArr.push(fetch(BASE_URL + 'hardware/byserial/' + serial, options))
+            } else {
+                console.log("Skipped bad input:", serial)
+            }
+        })
 
-                } else {
-                    console.log("Skipped bad input:", serial)
-                }
+        const promises = Promise.allSettled(promiseArr);
+        promises.then(results => {
+            const jsonPromises = []
+            results.forEach(result => {
+                jsonPromises.push(result.value.json())
             })
+            return jsonPromises
+        }).then(results => {
+            const new_results = Promise.allSettled(results)
 
-            const response_data = await Promise.all(promiseArr);
-            response_data.forEach((response) => {
-                const data = response.json();
+            new_results.then(results => {
+                results.forEach(result => {
+                    const data = result.value
+                    if (data.rows?.length > 0) {
+                        console.log("setting device")
+                        devicesArr.push(data.rows[0])
+                    }
 
-                if (data.rows?.length) {
-                    setDevices_new((prev) => [...prev, data.rows[0]])
-                }
+                })
+                console.log(devicesArr)
+                setDevices(devicesArr)
             })
+        })
 
+        setIsLoading(false)
 
-            setDevices(devices_new)
-            setPromisesResolved(0)
-            setDevices_new([])
-            setIsLoading(false)
-        }
+    }, [serials]);
 
-    }, [serials, reload]);
+    useEffect(() => {
+        console.log(devices)
+    }, [devices]);
 
     return (
         <AppLoader devices={devices} API_KEY={API_KEY} setAPI_KEY={setAPI_KEY} BASE_URL={BASE_URL} setBASE_URL={setBASE_URL}>
             <Container maxW='container.xl' maxH={'100vh'}>
                 <Heading color={'brand.100'}>Snipeit Bulk Action</Heading>
                 <Center>
-
-                    <Stack marginY={4} direction='rows' p={2} bgColor={'brand.100'} h={'90vh'} borderRadius={'8px'}>
+                    <Stack marginY={4} direction='rows' p={2} bgColor={'brand.100'} maxH={'90vh'} borderRadius={'8px'}>
                         <Stack minW='240px' p={2}>
                             <SerialModal setSerials={setSerials} />
 
-                            <ActionGroup setReload={setReload} selectedAction={selectedAction} setSelectedAction={setSelectedAction} />
+                            <ActionGroup selectedAction={selectedAction} setSelectedAction={setSelectedAction} />
 
-
-
-                            <ActionSelect setDevices={setDevices} setIsLoading={setIsLoading} API_KEY={API_KEY} BASE_URL={BASE_URL} setReload={setReload} selectedAction={selectedAction} setSelectedAction={setSelectedAction} />
+                            <ActionSelect setDevices={setDevices} setIsLoading={setIsLoading} API_KEY={API_KEY} BASE_URL={BASE_URL} selectedAction={selectedAction} setSelectedAction={setSelectedAction} />
                         </Stack>
-
 
                         <Box overflowY={'auto'} minW={'600px'}>
 
@@ -155,9 +160,9 @@ export const App = () => {
     );
 }
 
-const ActionSelect = ({ setDevices, setIsLoading, setReload, selectedAction, setSelectedAction, API_KEY, BASE_URL }) => {
+const ActionSelect = ({ setDevices, setIsLoading, selectedAction, setSelectedAction, API_KEY, BASE_URL }) => {
     if (selectedAction === 'update_status') {
-        return <UpdateStatus setDevices={setDevices} setIsLoading={setIsLoading} setReload={setReload} setSelectedAction={setSelectedAction} API_KEY={API_KEY} BASE_URL={BASE_URL} />
+        return <UpdateStatus setDevices={setDevices} setIsLoading={setIsLoading} setSelectedAction={setSelectedAction} API_KEY={API_KEY} BASE_URL={BASE_URL} />
     }
 }
 
@@ -181,11 +186,116 @@ const ActionGroup = ({ selectedAction, setSelectedAction }) => {
             </Select>
         </Stack>
     )
+}
 
+const UpdateLocation = () => {
+    const [locations, setLocations] = useState([])
+    const devices = useContext(DeviceContext);
+    const [selectedStatusLabel, setSelectedStatusLabel] = useState();
+    const [deviceCount, setDeviceCount] = useState(0);
+
+    const handleOnClickSubmit = () => {
+        devices.forEach((device) => {
+            const checkinOptions = {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    Authorization: 'Bearer ' + API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status_id: selectedStatusLabel, note: "Device checked in during bulk action." })
+            };
+
+            const statusOptions = {
+                method: 'PATCH',
+                headers: {
+                    Accept: 'application/json',
+                    Authorization: 'Bearer ' + API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    notes: noteText,
+                    status_id: selectedStatusLabel
+                })
+            };
+            setIsLoading(true)
+            if (device.assigned_to) {
+                console.log("Device is checked out and needs to be checked in")
+
+                fetch(BASE_URL + 'hardware/' + device.id + '/checkin', checkinOptions)
+                    .then(response => response.json())
+                    .then(response => console.log(response))
+                    .catch(err => console.error(err));
+            }
+
+            fetch(BASE_URL + 'hardware/' + device.id, statusOptions)
+                .then(response => response.json())
+                .then(response => {
+                    console.log(response)
+                    setDeviceCount((old_count) => old_count += 1)
+                })
+                .catch(err => console.error(err));
+
+        })
+
+        setDevices([])
+    }
+
+    useEffect(() => {
+        if (deviceCount === devices.length) {
+            console.log("Done")
+            setIsLoading(false)
+            setSelectedAction('')
+        }
+    }, [deviceCount, devices, setSelectedAction]);
+
+    const handleOnChangeStatusLabel = (e) => {
+        setSelectedStatusLabel(e.target.value)
+    }
+
+    const handleOnChangeNote = (e) => {
+        setNoteText(e.target.value)
+    }
+    useEffect(() => {
+        const options = {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                Authorization: 'Bearer ' + API_KEY
+            }
+        };
+
+        const arr = []
+        fetch(BASE_URL + 'statuslabels', options)
+            .then(response => response.json())
+            .then(response => response.rows.forEach((status) => {
+                arr.push({ value: status.id, label: status.name })
+            }))
+            .then(() => setStatusLabels(arr))
+            .catch(err => console.error(err));
+
+
+    }, []);
+
+    return (
+        <Stack>
+            <Heading size='md'>Update Status</Heading>
+            <label >Select new status</label>
+            <Select id='status_select' value={selectedStatusLabel} onChange={handleOnChangeStatusLabel} >
+                {statusLabels.map((option, key) => <option value={option.value} key={key} >{option.label}</option>)}
+            </Select>
+
+            <label for='note_field'>Add note</label>
+            <Textarea id='note_field' value={noteText} onChange={handleOnChangeNote}></Textarea>
+            <Button variant='branded' onClick={handleOnClickSubmit}>Submit</Button>
+        </Stack>
+    );
 }
 
 
-const UpdateStatus = ({ setDevices, setReload, setSelectedAction, setIsLoading, API_KEY, BASE_URL }) => {
+}
+
+const UpdateStatus = ({ setDevices, setSelectedAction, setIsLoading, API_KEY, BASE_URL }) => {
     const [statusLabels, setStatusLabels] = useState([])
     const devices = useContext(DeviceContext);
     const [noteText, setNoteText] = useState();
@@ -243,10 +353,9 @@ const UpdateStatus = ({ setDevices, setReload, setSelectedAction, setIsLoading, 
         if (deviceCount === devices.length) {
             console.log("Done")
             setIsLoading(false)
-            setReload(Math.random())
             setSelectedAction('')
         }
-    }, [deviceCount, devices, setReload, setSelectedAction]);
+    }, [deviceCount, devices, setSelectedAction]);
 
     const handleOnChangeStatusLabel = (e) => {
         setSelectedStatusLabel(e.target.value)
